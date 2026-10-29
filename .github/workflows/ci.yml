@@ -1,0 +1,43 @@
+name: Windows validation
+on:
+  pull_request:
+  push:
+    branches: [main, "codex/**"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+        shell: [powershell, pwsh]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Offline regression suite
+        shell: ${{ matrix.shell }}
+        run: ./tests/Run-Tests.ps1 -ResultPath test-results.json
+      - name: Disposable registry and ACL integration
+        shell: ${{ matrix.shell }}
+        run: ./tests/Windows-Integration.ps1
+      - name: Build and verify development bundle
+        shell: ${{ matrix.shell }}
+        run: |
+          ./tools/Build-Release.ps1 -OutputDirectory "$env:RUNNER_TEMP/hw-release" -Development
+          ./tools/Verify-Release.ps1 -Directory "$env:RUNNER_TEMP/hw-release/windows-hardening-2.0.0" -AllowUnsignedDevelopment
+      - name: Retain test evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tests-${{ matrix.os }}-${{ matrix.shell }}
+          path: test-results.json
+          retention-days: 14
+
