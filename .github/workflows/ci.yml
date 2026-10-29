@@ -23,16 +23,17 @@ jobs:
         with:
           persist-credentials: false
       - name: Offline regression suite
-        shell: ${{ matrix.shell }}
-        run: ./tests/Run-Tests.ps1 -ResultPath test-results.json
+        shell: powershell
+        run: "& '${{ matrix.shell }}' -NoProfile -NonInteractive -File ./tests/Run-Tests.ps1 -ResultPath test-results.json"
       - name: Disposable registry and ACL integration
-        shell: ${{ matrix.shell }}
-        run: ./tests/Windows-Integration.ps1
-      - name: Build and verify development bundle
-        shell: ${{ matrix.shell }}
-        run: |
-          ./tools/Build-Release.ps1 -OutputDirectory "$env:RUNNER_TEMP/hw-release" -Development
-          ./tools/Verify-Release.ps1 -Directory "$env:RUNNER_TEMP/hw-release/windows-hardening-2.0.0" -AllowUnsignedDevelopment
+        shell: powershell
+        run: "& '${{ matrix.shell }}' -NoProfile -NonInteractive -File ./tests/Windows-Integration.ps1"
+      - name: Build development bundle
+        shell: powershell
+        run: "& '${{ matrix.shell }}' -NoProfile -NonInteractive -File ./tools/Build-Release.ps1 -OutputDirectory $env:RUNNER_TEMP/hw-release -Development"
+      - name: Verify development bundle
+        shell: powershell
+        run: "& '${{ matrix.shell }}' -NoProfile -NonInteractive -File ./tools/Verify-Release.ps1 -Directory $env:RUNNER_TEMP/hw-release/windows-hardening-2.0.0 -AllowUnsignedDevelopment"
       - name: Retain test evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
