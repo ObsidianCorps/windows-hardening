@@ -337,12 +337,21 @@ function Restore-HWRun {
             try {
                 $current=Get-HWState $trusted[0]
                 if (Test-HWEqual $current $entry.Before) { $r.Status='AlreadyRestored' }
-                elseif ($null -eq $entry.After -or -not (Test-HWEqual $current $entry.After)) {
+                elseif (($null -eq $entry.After -or -not (Test-HWEqual $current $entry.After)) -and
+                    -not ($trusted[0].Kind -eq 'Feature' -and $entry.Status -eq 'PendingReboot' -and
+                        $null -ne $entry.After -and $entry.After.Value -eq 'DisablePending' -and $current.Value -eq 'Disabled')) {
                     $r.Status='Conflict'; $r.Error='State changed after this run, or the interrupted run has no verified after-state. Review manually.'
                 } else {
                     Set-HWState $trusted[0] $entry.Before | Out-Null
-                    if (-not (Test-HWEqual (Get-HWState $trusted[0]) $entry.Before)) { throw 'Restore verification failed; a restart may be required.' }
-                    $r.Status=if ($trusted[0].Restart) {'RestoredRestartRequired'} else {'Restored'}
+                    $restored=Get-HWState $trusted[0]
+                    if ($trusted[0].Kind -eq 'Feature' -and
+                        (($entry.Before.Value -eq 'Enabled' -and $restored.Value -eq 'EnablePending') -or
+                         ($entry.Before.Value -eq 'Disabled' -and $restored.Value -eq 'DisablePending'))) {
+                        $r.Status='RestorePendingReboot'
+                    } else {
+                        if (-not (Test-HWEqual $restored $entry.Before)) { throw 'Restore verification failed; a restart may be required.' }
+                        $r.Status=if ($trusted[0].Restart) {'RestoredRestartRequired'} else {'Restored'}
+                    }
                 }
             } catch { $r.Status='Failed'; $r.Error=$_.Exception.Message }
             Write-HWJson ([pscustomobject]@{SchemaVersion=1;Action='Restore';SourceRun=$source.RunId;Items=@($results)}) $path

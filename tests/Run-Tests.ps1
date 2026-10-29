@@ -277,6 +277,23 @@ $results=& $module {
         $r=Restore-HWRun $path $testRoot -Confirm:$false
         Assert ($r.Failed -eq 1 -and $r.Items[0].Status -eq 'ManualRecoveryRequired')
     }
+    Test 'Feature rollback accepts completion of a recorded pending disable after reboot' {
+        $feature=$catalog.Rules | Where-Object Kind -eq 'Feature'
+        $script:Memory[$feature.Id]=New-HWState -Value 'Disabled'
+        $journal=[pscustomobject]@{SchemaVersion=1;Action='Apply';RunId='feature-fixture';Context=$context;Items=@(
+            [pscustomobject]@{Id=$feature.Id;Rule=$feature;Before=New-HWState -Value 'Enabled'
+                After=New-HWState -Value 'DisablePending';Status='PendingReboot';Reversible=$true})}
+        $path=Join-Path $testRoot 'feature-journal.json';Write-HWJson $journal $path
+        $result=Restore-HWRun $path $testRoot -Confirm:$false
+        Assert ($result.Failed -eq 0 -and $script:Memory[$feature.Id].Value -eq 'Enabled')
+        $setter=(Get-Item Function:Set-HWState).ScriptBlock
+        $script:Memory[$feature.Id]=New-HWState -Value 'Disabled'
+        function script:Set-HWState { param($Rule,$State) $script:Memory[$Rule.Id]=New-HWState -Value 'EnablePending' }
+        try {
+            $pending=Restore-HWRun $path $testRoot -Confirm:$false
+            Assert ($pending.Failed -eq 0 -and $pending.Items[0].Status -eq 'RestorePendingReboot')
+        } finally { Set-Item Function:script:Set-HWState $setter }
+    }
     Test 'Configuration observations do not claim verified runtime protection' {
         $r=$catalog.Rules | Where-Object Id -eq 'runtime.smartscreen'
         $script:Memory[$r.Id]=New-HWState -Value $true
