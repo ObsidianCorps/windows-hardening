@@ -74,10 +74,17 @@ function ConvertTo-HWRedacted {
                 ProcessName='[redacted]';Reachability='Not tested'}
         });Profiles=@();InboundRules=@();Interpretation=$Snapshot.Network.Interpretation}
     }
+    $apply=$null
+    $sourceApply=Get-HWProperty $Snapshot 'Apply'
+    if ($null -ne $sourceApply) {
+        $apply=[pscustomobject]@{Journal=[pscustomobject]@{Items=@($sourceApply.Journal.Items | ForEach-Object {
+            [pscustomobject]@{Id=$_.Id;Name=$_.Name;Status=$_.Status;Reversible=$_.Reversible;Before='[redacted]';After='[redacted]'}
+        })}}
+    }
     [pscustomobject]@{SchemaVersion=1;Redacted=$true;CreatedUtc=$Snapshot.CreatedUtc
         Plan=[pscustomobject]@{ToolVersion=$Snapshot.Plan.ToolVersion;CatalogVersion=$Snapshot.Plan.CatalogVersion
             Profile=$Snapshot.Plan.Profile;Context=[pscustomobject]@{Computer='[redacted]';UserSid='[redacted]';Build=$Snapshot.Plan.Context.Build;Edition=$Snapshot.Plan.Context.Edition};Items=@($items)}
-        Network=$network;Diagnostics=$null;Diff=$null}
+        Network=$network;Diagnostics=$null;Diff=$null;Apply=$apply}
 }
 
 function Export-HWReport {
@@ -92,9 +99,25 @@ function Export-HWReport {
         '<tr><td>'+(& $encode $p.Id)+'<br>'+(& $encode $p.Name)+'</td><td>'+(& $encode $p.Status)+'</td><td>'+(& $encode $before)+'</td><td>'+(& $encode (ConvertTo-HWCanonical $p.Rule.Desired))+'</td><td>'+(& $encode $p.Rule.Impact)+'</td></tr>'
     }
     $summary=Get-HWSummary $report.Plan | ConvertTo-Html -Fragment | Out-String
+    $changeTable=''
+    $apply=Get-HWProperty $report 'Apply'
+    if ($null -ne $apply) {
+        $changeRows=foreach ($entry in $apply.Journal.Items) {
+            '<tr><td>'+(& $encode $entry.Id)+'</td><td>'+(& $encode (ConvertTo-HWCanonical $entry.Before))+'</td><td>'+(& $encode (ConvertTo-HWCanonical $entry.After))+'</td><td>'+(& $encode $entry.Status)+'</td><td>'+(& $encode $(if ($entry.Reversible) {'Selective restore available'} else {'Manual recovery required'}))+'</td></tr>'
+        }
+        $changeTable='<h2>Changes attempted by this run</h2><table><thead><tr><th>Rule</th><th>Before</th><th>After</th><th>Result</th><th>Recovery</th></tr></thead><tbody>'+($changeRows -join '')+'</tbody></table>'
+    }
+    $diff=Get-HWProperty $report 'Diff'
+    if ($null -ne $diff) {
+        $diffRows=foreach ($entry in $diff.Changes) {
+            '<tr><td>'+(& $encode $entry.Id)+'</td><td>'+(& $encode $entry.Change)+'</td><td>'+(& $encode (ConvertTo-HWCanonical $entry.Before))+'</td><td>'+(& $encode (ConvertTo-HWCanonical $entry.After))+'</td></tr>'
+        }
+        $changeTable+='<h2>Differences from the accepted snapshot</h2><p>Observed differences do not establish which application made a change.</p><table><thead><tr><th>Rule</th><th>Difference</th><th>Before</th><th>After</th></tr></thead><tbody>'+($diffRows -join '')+'</tbody></table>'
+    }
     $details=(& $encode ($report | ConvertTo-Json -Depth 32))
     $html='<!doctype html><html lang="en"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src ''none''; style-src ''unsafe-inline''"><title>Windows Hardening report</title><style>body{font:16px system-ui;margin:2rem;line-height:1.5;color:#17212b}table{border-collapse:collapse;width:100%}td,th{padding:.6rem;border:1px solid #ccd;text-align:left}pre{white-space:pre-wrap;overflow-wrap:anywhere}th{background:#eef3f8}</style><h1>Windows Hardening report</h1><p>Configured policy is distinct from verified runtime protection. Unknown results require review. Privacy and preference items are counted separately.</p>'+ $summary +'<table><thead><tr><th>Rule</th><th>Status</th><th>Observed</th><th>Target</th><th>Compatibility impact</th></tr></thead><tbody>'+($rows -join '')+'</tbody></table><h2>Evidence, network inventory and differences</h2><pre>'+$details+'</pre></html>'
     $htmlPath=$prefix+'.html'
+    $html=$html.Replace('<h2>Evidence, network inventory and differences</h2>',$changeTable+'<h2>Evidence, network inventory and differences</h2>')
     [IO.File]::WriteAllText($htmlPath,$html,(New-Object Text.UTF8Encoding($true)))
     [pscustomobject]@{Json=$prefix+'.json';Html=$htmlPath;Redacted=[bool]$Redact}
 }

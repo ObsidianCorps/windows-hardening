@@ -220,11 +220,13 @@ $results=& $module {
         $s.Plan.Items[0].Before.Value='<script>alert(1)</script>SECRET'
         $s.Plan.Items[0].Name='<script>evil</script>'
         $s | Add-Member NoteProperty Diagnostics ([pscustomobject]@{Message='SECRET-LOG'})
+        $s | Add-Member NoteProperty Apply ([pscustomobject]@{Journal=[pscustomobject]@{Items=@(
+            [pscustomobject]@{Id='fixture';Name='Fixture';Status='Verified';Reversible=$true;Before='SECRET-BEFORE';After='SECRET-AFTER'})}})
         $red=ConvertTo-HWRedacted $s | ConvertTo-Json -Depth 24
         Assert ($red -notmatch 'SECRET|127.0.0.1')
         $out=Export-HWReport $s (Join-Path $testRoot 'reports')
         $html=Get-Content -LiteralPath $out.Html -Raw
-        Assert ($html -notmatch '<script>' -and $html -match '&lt;script&gt;')
+        Assert ($html -notmatch '<script>' -and $html -match '&lt;script&gt;' -and $html -match 'Changes attempted by this run')
     }
     Test 'Catalog comparison detects recommendation changes' {
         $changed=$one | ConvertTo-Json -Depth 20 | ConvertFrom-Json;$changed.Rules[0].Desired=7
