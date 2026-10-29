@@ -240,6 +240,22 @@ $results=& $module {
     Test 'Invalid encryption certificates are rejected' {
         Expect-Throw { Test-HWEncryptionCertificateText 'not a certificate' }
     }
+    Test 'Valid public Document Encryption certificates are accepted without storing a private key' {
+        $key=[Security.Cryptography.RSA]::Create(2048)
+        $cert=$null
+        try {
+            $request=New-Object Security.Cryptography.X509Certificates.CertificateRequest('CN=Disposable test collector',$key,
+                [Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1)
+            $oids=New-Object Security.Cryptography.OidCollection
+            $oids.Add((New-Object Security.Cryptography.Oid('1.3.6.1.4.1.311.80.1'))) | Out-Null
+            $request.CertificateExtensions.Add((New-Object Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension($oids,$false)))
+            $request.CertificateExtensions.Add((New-Object Security.Cryptography.X509Certificates.X509KeyUsageExtension(
+                [Security.Cryptography.X509Certificates.X509KeyUsageFlags]::KeyEncipherment,$true)))
+            $cert=$request.CreateSelfSigned([DateTimeOffset]::UtcNow.AddDays(-1),[DateTimeOffset]::UtcNow.AddDays(1))
+            $public=[Convert]::ToBase64String($cert.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+            Assert (Test-HWEncryptionCertificateText $public)
+        } finally { if ($null -ne $cert) {$cert.Dispose()};$key.Dispose() }
+    }
     Test 'Array, boolean and object state comparison survives JSON roundtrips' {
         foreach ($value in @([pscustomobject]@{B=2;A=1},@(),@(0,1,2),$false,0,'')) {
             $state=New-HWState -Value $value
@@ -271,6 +287,14 @@ $results=& $module {
     }
     Test 'An unchanged catalog produces no recommendation diff' {
         Assert ((Compare-HWCatalog $one $one).Changes.Count -eq 0)
+    }
+    Test 'Incomplete network inventory does not report false listener disappearances' {
+        $before=$script:Fixture | ConvertTo-Json -Depth 24 | ConvertFrom-Json
+        $after=$before | ConvertTo-Json -Depth 24 | ConvertFrom-Json
+        $after.Network.Listeners=@()
+        $after.Network | Add-Member NoteProperty Errors @('Access denied')
+        $diff=Compare-HWSnapshot $before $after
+        Assert ($diff.ListenerChanges.Count -eq 0 -and $diff.DataQualityWarnings.Count -eq 1)
     }
     Test 'Relative filesystem paths follow the PowerShell working directory' {
         $path=Resolve-HWFilePath '.\README.md'
