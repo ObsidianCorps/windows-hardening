@@ -1,193 +1,143 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-blue?logo=windows" alt="Platform">
-  <img src="https://img.shields.io/badge/PowerShell-5.1%2B-blue?logo=powershell" alt="PowerShell">
-  <img src="https://img.shields.io/github/license/obsidiancorps/windows-hardening" alt="License">
-  <img src="https://img.shields.io/github/stars/obsidiancorps/windows-hardening?style=social" alt="Stars">
-</p>
+# Windows Hardening Tool v2
 
-# Windows Hardening Tool
+Audit Windows, understand the trade-offs, preview changes, apply selected rules, and verify the result.
 
-> One script. 150+ checks. Harden Windows 10/11 in minutes.
+**Development candidate: client VM qualification and production code signing are required before a production release.** See [release validation](docs/RELEASE-VALIDATION.md). Automated tests do not certify Windows reset/recovery compatibility.
 
-An interactive PowerShell tool that audits and hardens your Windows system across **11 categories** — from telemetry and bloatware to Defender ASR rules and credential protection. No dependencies, no third-party tools, just a single `.ps1` file.
+## What changed
 
-<p align="center">
-  <strong>Audit &rarr; Review &rarr; Harden &rarr; Verify</strong>
-</p>
+- A versioned catalog of 171 security, privacy, preference and recovery checks.
+- Everyday, Gaming, Developer and ManagedWorkstation profiles, with explicit optional selections.
+- Write-ahead change journals, verification, selective rollback, conflict detection and mutation locking.
+- Separate counts for security, privacy and preferences; runtime observations are distinguished from configured policy.
+- Private JSON/HTML reports, redacted sharing exports, machine-state diffs and catalog recommendation diffs.
+- TCP listeners, UDP endpoints, process/service ownership and active firewall evidence.
+- Symptom-based diagnostics, WinRE evidence and bounded Defender/Code Integrity event collection.
+- Optional read-only monitoring, exceptions with expiry, and software compatibility hints.
+- An advanced App Control audit/review/enforcement lifecycle.
+- Signed-release tooling and checksum verification. Development bundles are explicitly unsigned.
 
-## Highlights
+Version 2 replaces the single-file distribution. Keep **Harden-Windows.ps1**, **src/** and **catalog/** together. No runtime third-party PowerShell modules are downloaded.
 
-- **Interactive TUI** with animated audit, color-coded results, and category picker
-- **150+ hardening checks** based on CIS Benchmarks, Microsoft Security Baselines, and ACSC guidance
-- **Audit mode** — scan your system and get a hardening score without changing anything
-- **Quick Harden** — apply all recommended settings with one keypress
-- **Custom Harden** — pick exactly which categories to apply
-- **Automatic registry backup** before any changes, with one-click restore
-- **Silent/CLI mode** for automation, scripting, and deployment pipelines
-- **Zero dependencies** — runs on any Windows 10/11 machine with PowerShell 5.1
+## Start with an audit
 
-## Quick Start
+Use 64-bit Windows PowerShell 5.1 on Windows 10 22H2 or Windows 11. Features vary by build, edition, management policy and hardware. The App Control lifecycle requires Windows 11 22H2 or newer. Windows Server is not an application target.
 
-```powershell
-# Download and run (as Administrator)
-irm https://raw.githubusercontent.com/obsidiancorps/windows-hardening/main/Harden-Windows.ps1 -OutFile Harden-Windows.ps1
-powershell -ExecutionPolicy Bypass -File .\Harden-Windows.ps1
-```
+Some observations require elevation. Restricted access is reported as Unknown. Windows 10 servicing depends on edition/channel and ESU entitlement: a compatible build does not prove it is receiving security updates.
 
-Or clone the repo:
-
-```powershell
-git clone https://github.com/obsidiancorps/windows-hardening.git
-cd windows-hardening
-powershell -ExecutionPolicy Bypass -File .\Harden-Windows.ps1
-```
-
-## What It Hardens
-
-| # | Category | Settings | What it does |
-|---|----------|:--------:|-------------|
-| 1 | **Telemetry** | 12 | Diagnostic data, feedback, error reports, advertising ID |
-| 2 | **Privacy** | 14 | Activity history, location, speech, camera/mic defaults |
-| 3 | **Services** | 13 | DiagTrack, geolocation, Xbox, Maps, error reporting |
-| 4 | **Scheduled Tasks** | 12 | CEIP, compatibility appraiser, feedback, disk diagnostics |
-| 5 | **Network** | 15 | SMBv1, LLMNR, WPAD, NetBIOS, RDP NLA/TLS, DNS-over-HTTPS, telemetry firewall |
-| 6 | **Security** | 19 | UAC, NTLM, LSA Protection, Credential Guard, SMB signing, PS logging |
-| 7 | **Defender/ASR** | 19 | 14 Attack Surface Reduction rules + PUA/network protection |
-| 8 | **Bloatware** | 21+ | Remove pre-installed apps, disable suggested content and spotlight |
-| 9 | **AI/Copilot** | 8 | Disable Copilot, Recall, Bing AI, web search in Start |
-| 10 | **Windows Update** | 5 | Defer feature updates, disable P2P delivery, no auto-restart |
-| 11 | **Miscellaneous** | 7 | File extensions, GameDVR, widgets, lock screen hardening |
-
-### Attack Surface Reduction Rules
-
-The Defender category enables **14 ASR rules** in Block mode, covering the most common attack vectors:
-
-- Office apps creating executables, child processes, or injecting code
-- JavaScript/VBScript launching downloaded content
-- Obfuscated scripts and untrusted USB processes
-- Credential stealing from LSASS
-- Email-delivered executables
-- WMI persistence and PSExec/WMI process creation
-- Abuse of vulnerable signed drivers
-
-### Audit-Only Items
-
-Some items are checked but **not automatically applied** because they require specific hardware or may break certain apps:
-
-- **Credential Guard** — needs UEFI + TPM + VBS capable hardware
-- **Controlled Folder Access** — can block legitimate apps from writing to Documents/Desktop
-
-The script includes manual enable instructions for these in the source comments.
-
-## Usage
-
-### Interactive Mode
-
-```powershell
+~~~powershell
 .\Harden-Windows.ps1
-```
+.\Harden-Windows.ps1 -Action Audit -ReportPath "$env:LOCALAPPDATA\WindowsHardening\reports"
+.\Harden-Windows.ps1 -Interactive
+~~~
 
-Navigate the TUI menu:
-1. **Audit System** — animated scan with per-category progress bars and overall score
-2. **Quick Harden** — apply all settings (creates backup first)
-3. **Custom Harden** — toggle individual categories on/off
-4. **Create/Restore Backup** — manual backup management
+Audit and Plan read configuration. Report files are written only when requested. No scan result is a guarantee that a device is secure.
 
-### Silent Mode (CLI)
+## Preview and apply
 
-```powershell
-# Apply everything (for automation / deployment)
-.\Harden-Windows.ps1 -Silent -All
+~~~powershell
+.\Harden-Windows.ps1 -Action Plan -Profile Gaming
 
-# Apply specific categories only
-.\Harden-Windows.ps1 -Silent -Categories Telemetry,Privacy,Services,Defender,AI
+# Preview without modifying settings or writing reports:
+.\Harden-Windows.ps1 -Action Apply -RuleId security.enablelua -WhatIf
 
-# Valid categories:
-# Telemetry, Privacy, Services, Tasks, Network, Security,
-# Defender, Bloatware, AI, Updates, Misc
-```
+# Elevated PowerShell; inspect the per-rule confirmation:
+.\Harden-Windows.ps1 -Action Apply -RuleId security.enablelua
 
-## What It Does NOT Do
+# Optional settings must be selected explicitly:
+.\Harden-Windows.ps1 -Action Plan -Categories Privacy -IncludeOptional
+.\Harden-Windows.ps1 -Action Apply -RuleId security.runasppl
 
-- **Does not disable Windows Update** — that would be a security risk
-- **Does not disable Windows Defender** — you need your AV
-- **Does not modify UEFI/boot settings** — no risk of bricking
-- **Does not touch your files or personal data**
+# ASR defaults to Audit. Test applications before explicitly selecting Block:
+.\Harden-Windows.ps1 -Action Apply -Categories Defender -ASRMode Audit
+~~~
 
-## Backup and Restore
+Profiles select a conservative starting set; they do not certify compatibility. Gaming avoids app/service removal; Developer leaves the maximum UAC prompt preference unselected. ManagedWorkstation still requires explicit authorization to modify a managed device. Privacy, app removal, service/task disabling, LSA changes, update deferral and driver exclusion are optional.
 
-The tool **automatically creates a registry backup** in `%USERPROFILE%\WindowsHardeningBackups\` before applying any changes. Each backup is timestamped. You can restore any backup from the TUI menu or by importing the `.reg` file directly.
+ASR rules already in Block or Warn are preserved when the target is Audit. LSA RunAsPPL=1 is preserved rather than downgraded; new optional LSA changes use value 2 on supported Windows 11 builds, without requesting a UEFI lock. Existing firmware locks require Microsoft's separate recovery procedure.
 
-## False Positive Prevention
+Use -AllowManaged only after reviewing organizational policy. The tool does not bypass Group Policy, MDM or Defender tamper protection. Management detection is conservative and can require manual review.
 
-The audit engine handles three classes of checks to avoid false reporting:
+Legacy -Silent -All no longer implicitly mutates Windows. Use an explicit -Action Apply. -All additionally requires -IncludeOptional; selecting individual rules is recommended. -Confirm:$false is available for reviewed automation.
 
-| Check type | How it works |
-|-----------|-------------|
-| **Standard registry** | Reads key, compares to desired value |
-| **NullOk (secure defaults)** | Missing key = already secure (e.g., DEP, WDigest, SEHOP are on by default) |
-| **Custom check** | Scriptblock for complex state (e.g., SMBv1 uses `Get-WindowsOptionalFeature`, Credential Guard uses WMI) |
+## Reports and differences
 
-## Requirements
+~~~powershell
+# Keep this private JSON snapshot as your accepted baseline:
+.\Harden-Windows.ps1 -Action Audit -ReportPath "$env:LOCALAPPDATA\WindowsHardening\baseline"
 
-- Windows 10 (1903+) or Windows 11 (including 24H2)
-- PowerShell 5.1+
-- **Administrator privileges**
+# Later, use the exact JSON filename printed by the first command:
+.\Harden-Windows.ps1 -Action Audit -BaselinePath .\baseline.json -ReportPath .\reports
 
-## FAQ
+.\Harden-Windows.ps1 -Action Compare -BaselinePath .\before.json -ComparePath .\after.json
+.\Harden-Windows.ps1 -Action CompareCatalog -BaselinePath .\old-rules.json -ComparePath .\catalog\rules.json
 
-<details>
-<summary><strong>Will this break anything?</strong></summary>
+# Strict sharing export removes raw values, device/user IDs, addresses, processes and free-form logs:
+.\Harden-Windows.ps1 -Action Audit -ReportPath .\share -Redact
+~~~
 
-The settings are conservative and widely tested. Xbox services are disabled (irrelevant if you don't game on PC). Camera/microphone defaults are set to Deny but apps can still request access. If something breaks, use the Restore Backup option.
-</details>
+Keep private snapshots for comparisons. Redacted exports cannot be restored or used as monitor baselines. HTML is standalone, escapes dynamic content, and uses no remote assets. An observed difference is not automatically attributed to this tool.
 
-<details>
-<summary><strong>Do I need to restart?</strong></summary>
+## Ports and troubleshooting
 
-Yes — LSA Protection, service changes, and some network settings require a restart to take full effect.
-</details>
+~~~powershell
+.\Harden-Windows.ps1 -Action Network
+.\Harden-Windows.ps1 -Action Doctor -Symptom Recovery -JournalPath .\run-ID.json
+.\Harden-Windows.ps1 -Action Doctor -Symptom Camera -JournalPath .\run-ID.json
+~~~
 
-<details>
-<summary><strong>Can I run this on a domain-joined machine?</strong></summary>
+Network inventory distinguishes loopback, all-interface and individual interface bindings. Firewall rules are evidence, not a complete reachability verdict. A bound UDP endpoint does not necessarily represent a server. Internet exposure requires testing from an appropriate external observation point.
 
-Yes, but domain Group Policy may override some settings. The audit will accurately show what's actually applied regardless of GPO.
-</details>
+Doctor reads relevant events and log locations. It does not reset Windows, repair the component store, disable protections, or claim that a related change caused a failure.
 
-<details>
-<summary><strong>How do I undo everything?</strong></summary>
+## Restore
 
-Use [5] Restore Backup in the TUI. For services, re-enable manually via `services.msc`. For bloatware, reinstall from the Microsoft Store.
-</details>
+~~~powershell
+.\Harden-Windows.ps1 -Action Restore -JournalPath .\run-ID.json -RuleId security.enablelua
+~~~
 
-<details>
-<summary><strong>Can I use this in my organization?</strong></summary>
+Use the journal path printed after Apply. Original registry absence and types, service settings, task enablement, ASR preferences, firewall profile values and adapter NetBIOS settings are recorded. Rollback checks for intervening changes; conflicts require review. A restart may still be necessary.
 
-Yes. The `-Silent -All` mode is designed for deployment pipelines. The MIT license allows commercial use. Test on a staging machine first.
-</details>
+Removed apps require Microsoft Store reinstallation. Provisioned apps are preserved. Feature payloads are not deliberately removed. Interrupted changes without reliable after-state require manual review. The adjacent .previous checkpoint may help investigation after an interrupted journal replacement.
 
-## References
+Journals are local recovery records protected by filesystem ACLs. They are not tamper-proof evidence against a local administrator, and they are not a disk image or system backup. Version 1 .reg exports cannot provide full rollback.
 
-This tool's checks are informed by:
+## Monitoring and exceptions
 
-- [CIS Microsoft Windows 11 Enterprise Benchmark v4.0.0](https://www.cisecurity.org/benchmark/microsoft_windows_desktop)
-- [Microsoft Attack Surface Reduction Rules](https://learn.microsoft.com/en-us/defender-endpoint/attack-surface-reduction-rules-reference)
-- [ACSC Hardening Microsoft Windows 11](https://www.cyber.gov.au/resources-business-and-government/maintaining-devices-and-systems/system-hardening-and-administration/system-hardening/hardening-microsoft-windows-10-version-21h1-workstations)
-- [Microsoft Security Baselines](https://learn.microsoft.com/en-us/windows/security/operating-system-security/device-management/windows-security-configuration-framework/windows-security-baselines)
+~~~powershell
+.\Harden-Windows.ps1 -Action RegisterMonitor -BaselinePath .\accepted-baseline.json
+.\Harden-Windows.ps1 -Action RemoveMonitor
 
-## Contributing
+.\Harden-Windows.ps1 -Action Audit -ExceptionsPath .\my-exceptions.json
+~~~
 
-PRs welcome! Please:
-1. Test on a clean Windows 10/11 VM before submitting
-2. Add comments explaining **what** the setting does and **why** it matters
-3. Use `NullOk` or `Check` scriptblocks where the default state is already secure
+Copy [the exception example](catalog/exceptions.example.json), set a reason and an optional UTC expiry. Monitoring runs daily and at logon as the current user with a limited token. It writes private reports and never applies settings. It can detect changes after updates at the next scan; it is not a real-time Windows Update event subscriber. Retain or remove monitor reports according to your storage policy.
+
+## Advanced features
+
+See [App Control and protected logging](docs/ADVANCED.md), [architecture](docs/ARCHITECTURE.md), [release validation](docs/RELEASE-VALIDATION.md) and [the changelog](CHANGELOG.md).
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Requested operation completed; inspect Unknown/Unsupported results in audits |
+| 1 | Invalid input, environment error, or fatal persistence failure |
+| 2 | Apply/restore failed, conflicted, needed manual recovery, or selected evidence was unavailable |
+| 3 | Read-only Monitor found differences from its accepted baseline |
+
+## Verify a release
+
+Obtain the publisher's certificate thumbprint through an independently trusted channel. Run the verifier from a trusted checkout or verified distribution before running the tool:
+
+~~~powershell
+.\tools\Verify-Release.ps1 -Directory .\windows-hardening-2.0.0 -ExpectedSignerThumbprint YOUR_TRUSTED_THUMBPRINT
+~~~
+
+Checksums detect corruption; the signed manifest authenticates the publisher when its signature and expected certificate are verified. There is no automatic download-and-execute updater. Catalog changes are compared locally before adoption.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE).
 
----
 
-<p align="center">
-  Made by <a href="https://github.com/obsidiancorps">ObsidianCorps</a>
-</p>

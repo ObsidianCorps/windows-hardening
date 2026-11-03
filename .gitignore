@@ -20,4 +20,9 @@ Desktop.ini
 *.log
 
 # Test artifacts
-test-*.ps1
+test-results*.json
+dist*/
+*.zip
+*.previous
+mutation.lock
+

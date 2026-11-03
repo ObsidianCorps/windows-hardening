@@ -1,0 +1,10 @@
+{
+  "SchemaVersion": 1,
+  "Exceptions": [
+    {
+      "RuleId": "network.enablemulticast",
+      "Reason": "Example only: legacy application requires name resolution pending migration.",
+      "ExpiresUtc": "2026-12-31T23:59:59Z"
+    }
+  ]
+}

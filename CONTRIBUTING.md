@@ -1,37 +1,25 @@
 # Contributing
 
-Thanks for considering a contribution! Here's how to help.
+## Rule changes
 
-## Adding Hardening Checks
+Add or update data in catalog/rules.json. Keep IDs stable and assign a single owner to each physical target. Include exact evidence semantics, desired value/type, supported builds/editions, domain, severity, profile eligibility, reversibility, restart need, impact, source and review date. Do not add executable catalog script blocks.
 
-1. Pick the right category function (`Invoke-Telemetry`, `Invoke-Security`, etc.)
-2. Add your item to the `$items` array:
+Prefer runtime evidence for runtime claims. Missing registry values are not automatically secure; DefaultSecure needs an authoritative documented default. Legacy, deprecated or unverified controls remain inventory-only until their behavior is qualified. Do not label privacy or preference changes as security compliance.
 
-```powershell
-# Explain what the setting does and why it matters
-@{ Name = 'Human-readable name'; Path = 'HKLM:\...'; Key = 'ValueName'; Want = 1 }
-```
+Providers belong in src/Providers.ps1. Every mutation needs an original-state read, safe apply/restore behavior, post-change verification and meaningful failure propagation. If exact rollback is unavailable, mark the action irreversible and exclude it from automatic profiles.
 
-3. If the setting is secure by default when the key is absent, add `NullOk = $true`
-4. If the check needs more than a registry read, use a `Check` scriptblock
-5. If the setting shouldn't be auto-applied (hardware dependent, may break apps), omit `ApplyFn` and add `[audit-only]` to the Name
+## Tests
 
-## Testing
+Run tests/Run-Tests.ps1 with Windows PowerShell 5.1 and PowerShell 7. The suite requires no downloaded dependencies and mocks system mutations. Add behavioral regression coverage for failures, stale state, repeat runs, interruptions and restore conflicts.
 
-- Test on a clean Windows 10 and/or Windows 11 VM
-- Run the audit (`[1]`) before and after applying
-- Verify the backup/restore cycle works
-- Test silent mode: `.\Harden-Windows.ps1 -Silent -Categories YourCategory`
+tests/Windows-Integration.ps1 is restricted to disposable CI runners or explicitly designated disposable VMs and mutates only a GUID-scoped HKCU fixture.
 
-## Code Style
+Complete the client VM matrix in docs/RELEASE-VALIDATION.md before production qualification. Server CI alone does not validate Windows client hardening, reset, gaming, App Control or organization-managed behavior.
 
-- ASCII-only characters (no Unicode box-drawing) for PowerShell 5.1 compatibility
-- Save with UTF-8 BOM encoding
-- Comment every hardening item explaining what it does
-- Use `Set-StrictMode -Version Latest` compatible code
+## Style and review
 
-## Pull Requests
+Use Windows PowerShell 5.1-compatible syntax and UTF-8 with BOM for PowerShell files. Preserve strict mode compatibility. Keep diagnostics local, bound expensive collection and redact free-form/private evidence from sharing exports. Keep secrets and signing private keys out of source control.
 
-- One feature/fix per PR
-- Include the category and setting count in the PR title
-- Reference CIS Benchmark, STIG, or Microsoft documentation where applicable
+PR descriptions should explain resulting behavior, compatibility impact, recovery and validation. Publish source/rule diffs and known limitations. Do not claim CIS certification or production readiness from a settings count or unit-test result.
+
+
